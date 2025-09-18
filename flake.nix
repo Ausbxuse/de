@@ -1,6 +1,7 @@
 {
   description = "Custom fonts, themes, apps, scripts as a Home-Manager module";
 
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs";
   outputs = {self, ...}: {
     homeManagerModules.default = {
       lib,
@@ -8,46 +9,77 @@
       config,
       ...
     }: let
-      cfg = config.my;
+      inherit (lib) mkIf mkEnableOption mkOption types optional;
     in {
-      options.my = {
-        enable = lib.mkEnableOption "Enable my extras";
-        host = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
+      options = {
+        myHost = mkOption {
+          type = types.nullOr types.str;
           default = null; # e.g., "timy" / "uni"
           description = "Optional per-host selector for extra scripts.";
         };
-        fonts.enable = lib.mkEnableOption "Install custom fonts";
-        themes.enable = lib.mkEnableOption "Install custom themes";
-        apps.enable = lib.mkEnableOption "Install custom applications/configs";
-        scripts.enable = lib.mkEnableOption "Install custom scripts";
-        dict.enable = lib.mkEnableOption "Install custom dictionaries";
-        wallpapers.enable = lib.mkEnableOption "Install wallpapers";
+        myFonts.enable = mkEnableOption "Install custom fonts";
+        myThemes.enable = mkEnableOption "Install custom themes";
+        myApps.enable = mkEnableOption "Install custom applications/configs";
+        myScripts.enable = mkEnableOption "Install custom scripts";
+        myDict.enable = mkEnableOption "Install custom dictionaries";
+        myWallpapers.enable = mkEnableOption "Install wallpapers";
       };
 
-      config = lib.mkIf cfg.enable {
-        xdg.enable = lib.mkDefault true;
+      config = {
+        # Drop xdg.* entirely
+        # xdg.enable = lib.mkDefault true;
 
         home.sessionPath = ["${config.home.homeDirectory}/.local/bin"];
 
-        xdg.dataFile = lib.mkMerge [
-          (lib.mkIf cfg.fonts.enable {"fonts".source = ./fonts;})
-          (lib.mkIf cfg.themes.enable {"themes".source = ./themes;})
-          (lib.mkIf cfg.apps.enable {"applications".source = ./applications;})
-          (lib.mkIf cfg.dict.enable {"stardict".source = ./stardict;})
-          (lib.mkIf cfg.wallpapers.enable {"wallpapers".source = ./wallpapers;})
+        # Data dirs under ~/.local/share/*
+        home.file = lib.mkMerge [
+          # Fonts -> ~/.local/share/fonts
+          (mkIf config.myFonts.enable {
+            ".local/share/fonts" = {
+              source = ./fonts;
+              recursive = true;
+            };
+          })
+          # Themes -> ~/.local/share/themes
+          (mkIf config.myThemes.enable {
+            ".local/share/themes" = {
+              source = ./themes;
+              recursive = true;
+            };
+          })
+          # Desktop files -> ~/.local/share/applications
+          (mkIf config.myApps.enable {
+            ".local/share/applications" = {
+              source = ./applications;
+              recursive = true;
+            };
+          })
+          # Dictionaries -> ~/.local/share/stardict
+          (mkIf config.myDict.enable {
+            ".local/share/stardict" = {
+              source = ./stardict;
+              recursive = true;
+            };
+          })
+          # Wallpapers -> ~/.local/share/wallpapers
+          (mkIf config.myWallpapers.enable {
+            ".local/share/wallpapers" = {
+              source = ./wallpapers;
+              recursive = true;
+            };
+          })
         ];
 
-        home.file.".local/bin" = lib.mkIf cfg.scripts.enable {
+        # Binaries -> ~/.local/bin (symlinkJoin is fine)
+        home.file.".local/bin" = mkIf config.myScripts.enable {
           source = pkgs.symlinkJoin {
             name = "custom-bin";
             paths =
               [./bin]
-              ++ lib.optional (cfg.host == "timy") ./bin-timy
-              ++ lib.optional (cfg.host == "uni") ./bin-uni;
+              ++ optional (config.myHost == "timy") ./bin-timy
+              ++ optional (config.myHost == "uni") ./bin-uni;
           };
           recursive = true;
-          # executable = true  # not needed for directories
         };
       };
     };
