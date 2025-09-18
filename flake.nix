@@ -1,64 +1,53 @@
 {
-  description = "Custom fonts, themes, apps, and scripts as a Home-Manager module";
+  description = "Custom fonts, themes, apps, scripts as a Home-Manager module";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs";
-
-  outputs = {
-    self,
-    nixpkgs,
-  }: let
-    systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
-    forAllSystems = f:
-      builtins.listToAttrs (map (system: {
-          name = system;
-          value = f system;
-        })
-        systems);
-  in {
+  outputs = {self, ...}: {
     homeManagerModules.default = {
-      config,
       lib,
-      hostname,
       pkgs,
+      config,
       ...
-    }: {
-      options = {
-        myFonts.enable = lib.mkEnableOption "Install custom fonts";
-        myThemes.enable = lib.mkEnableOption "Install custom themes";
-        myApps.enable = lib.mkEnableOption "Install custom applications/configs";
-        myScripts.enable = lib.mkEnableOption "Install custom scripts";
+    }: let
+      cfg = config.my;
+    in {
+      options.my = {
+        enable = lib.mkEnableOption "Enable my extras";
+        host = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null; # e.g., "timy" / "uni"
+          description = "Optional per-host selector for extra scripts.";
+        };
+        fonts.enable = lib.mkEnableOption "Install custom fonts";
+        themes.enable = lib.mkEnableOption "Install custom themes";
+        apps.enable = lib.mkEnableOption "Install custom applications/configs";
+        scripts.enable = lib.mkEnableOption "Install custom scripts";
+        dict.enable = lib.mkEnableOption "Install custom dictionaries";
+        wallpapers.enable = lib.mkEnableOption "Install wallpapers";
       };
 
-      config = {
-        home.file = {
-          "${config.xdg.dataHome}/fonts" = lib.mkIf config.myFonts.enable {
-            source = ./fonts;
-            recursive = true;
-          };
+      config = lib.mkIf cfg.enable {
+        xdg.enable = lib.mkDefault true;
 
-          "${config.xdg.dataHome}/themes" = lib.mkIf config.myThemes.enable {
-            source = ./themes;
-            recursive = true;
-          };
+        home.sessionPath = ["${config.home.homeDirectory}/.local/bin"];
 
-          "${config.xdg.dataHome}/applications" = lib.mkIf config.myApps.enable {
-            source = ./applications;
-            recursive = true;
-          };
+        xdg.dataFile = lib.mkMerge [
+          (lib.mkIf cfg.fonts.enable {"fonts".source = ./fonts;})
+          (lib.mkIf cfg.themes.enable {"themes".source = ./themes;})
+          (lib.mkIf cfg.apps.enable {"applications".source = ./applications;})
+          (lib.mkIf cfg.dict.enable {"stardict".source = ./stardict;})
+          (lib.mkIf cfg.wallpapers.enable {"wallpapers".source = ./wallpapers;})
+        ];
 
-          "${config.home.homeDirectory}/.local/bin" = lib.mkIf config.myScripts.enable {
-            source = pkgs.symlinkJoin {
-              name = "custom-bin";
-              paths =
-                [
-                  ./bin
-                ]
-                ++ lib.optional (hostname == "timy") ./bin-timy
-                ++ lib.optional (hostname == "uni") ./bin-uni;
-            };
-            recursive = true;
-            executable = true;
+        home.file.".local/bin" = lib.mkIf cfg.scripts.enable {
+          source = pkgs.symlinkJoin {
+            name = "custom-bin";
+            paths =
+              [./bin]
+              ++ lib.optional (cfg.host == "timy") ./bin-timy
+              ++ lib.optional (cfg.host == "uni") ./bin-uni;
           };
+          recursive = true;
+          # executable = true  # not needed for directories
         };
       };
     };
