@@ -27,11 +27,11 @@
       };
 
       config = {
-        # xdg.* deliberately not used
+        # no xdg.*
 
         home.sessionPath = ["${config.home.homeDirectory}/.local/bin"];
 
-        # Data dirs under ~/.local/share/*
+        # Put *everything* under one home.file definition
         home.file = lib.mkMerge [
           (mkIf config.myFonts.enable {
             ".local/share/fonts" = {
@@ -63,19 +63,19 @@
               recursive = true;
             };
           })
+          (mkIf config.myScripts.enable {
+            ".local/bin" = {
+              source = pkgs.symlinkJoin {
+                name = "custom-bin";
+                paths =
+                  [./bin]
+                  ++ optional (config.myHost == "timy") ./bin-timy
+                  ++ optional (config.myHost == "uni") ./bin-uni;
+              };
+              recursive = true;
+            };
+          })
         ];
-
-        # Binaries -> ~/.local/bin (separate from the mkMerge above)
-        home.file.".local/bin" = mkIf config.myScripts.enable {
-          source = pkgs.symlinkJoin {
-            name = "custom-bin";
-            paths =
-              [./bin]
-              ++ optional (config.myHost == "timy") ./bin-timy
-              ++ optional (config.myHost == "uni") ./bin-uni;
-          };
-          recursive = true;
-        };
       };
     };
   };
