@@ -3,7 +3,11 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs";
 
-  outputs = {self, ...}: {
+  outputs = {
+    self,
+    nixpkgs,
+    ...
+  }: {
     homeManagerModules.default = {
       lib,
       pkgs,
@@ -11,6 +15,23 @@
       ...
     }: let
       inherit (lib) mkIf mkEnableOption mkOption types optional;
+
+      # Helper: wrap a local directory into a derivation
+      mkDataPkg = name: src:
+        pkgs.stdenv.mkDerivation {
+          inherit name src;
+          dontBuild = true;
+          installPhase = ''
+            mkdir -p $out/share/${name}
+            cp -r $src/* $out/share/${name}/
+          '';
+        };
+
+      fontsPkg = mkDataPkg "fonts" ./fonts;
+      themesPkg = mkDataPkg "themes" ./themes;
+      appsPkg = mkDataPkg "applications" ./applications;
+      dictPkg = mkDataPkg "stardict" ./stardict;
+      wallsPkg = mkDataPkg "wallpapers" ./wallpapers;
     in {
       options = {
         myHost = mkOption {
@@ -27,55 +48,54 @@
       };
 
       config = {
-        # no xdg.*
-
         home.sessionPath = ["${config.home.homeDirectory}/.local/bin"];
 
-        # Put *everything* under one home.file definition
-        home.file = lib.mkMerge [
+        xdg.dataFile = lib.mkMerge [
           (mkIf config.myFonts.enable {
-            ".local/share/fonts" = {
-              source = ./fonts;
+            "fonts" = {
+              source = "${fontsPkg}/share/fonts";
               recursive = true;
             };
           })
           (mkIf config.myThemes.enable {
-            ".local/share/themes" = {
-              source = ./themes;
+            "themes" = {
+              source = "${themesPkg}/share/themes";
               recursive = true;
             };
           })
           (mkIf config.myApps.enable {
-            ".local/share/applications" = {
-              source = ./applications;
+            "applications" = {
+              source = "${appsPkg}/share/applications";
               recursive = true;
             };
           })
           (mkIf config.myDict.enable {
-            ".local/share/stardict" = {
-              source = ./stardict;
+            "stardict" = {
+              source = "${dictPkg}/share/stardict";
               recursive = true;
             };
           })
           (mkIf config.myWallpapers.enable {
-            ".local/share/wallpapers" = {
-              source = ./wallpapers;
-              recursive = true;
-            };
-          })
-          (mkIf config.myScripts.enable {
-            ".local/bin" = {
-              source = pkgs.symlinkJoin {
-                name = "custom-bin";
-                paths =
-                  [./bin]
-                  ++ optional (config.myHost == "timy") ./bin-timy
-                  ++ optional (config.myHost == "uni") ./bin-uni;
-              };
+            "wallpapers" = {
+              source = "${wallsPkg}/share/wallpapers";
               recursive = true;
             };
           })
         ];
+
+        # Scripts remain in ~/.local/bin, built via symlinkJoin
+        home.file = mkIf config.myScripts.enable {
+          ".local/bin" = {
+            source = pkgs.symlinkJoin {
+              name = "custom-bin";
+              paths =
+                [./bin]
+                ++ optional (config.myHost == "timy") ./bin-timy
+                ++ optional (config.myHost == "uni") ./bin-uni;
+            };
+            recursive = true;
+          };
+        };
       };
     };
   };
