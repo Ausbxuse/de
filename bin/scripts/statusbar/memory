@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
-status=$(free --mebi | sed -n '2{p;q}' | awk '{printf ("%2.0f/%2.0fG\n", ( $3 / 1024), ($2 / 1024))}')
+# status=$(free --mebi | sed -n '2{p;q}' | awk '{printf ("%2.0f/%2.0fG\n", ( $3 / 1024), ($2 / 1024))}')
+read total used <<<$(free --mebi | awk '/Mem:/ {print $2, $3}')
+
+# choose unit
+if (( total >= 1048576 )); then
+    unit="T"
+    div=1048576
+else
+    unit="G"
+    div=1024
+fi
+
+status=$(awk -v u="$used" -v t="$total" -v d="$div" -v unit="$unit" \
+    'BEGIN {printf "%.1f/%.1f%s\n", u/d, t/d, unit}')
 
 # case $percentage in
 # 	[0-9]) echo -e "\x0f▁" ;;
