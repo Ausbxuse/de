@@ -1,16 +1,30 @@
 #!/usr/bin/env bash
 
-folders=(~/src/public ~/src/school ~/Research ~/Documents)
+folders=(~/src/public ~/src/school ~/Research)
+
+dir_list=$(fd . --type d --exact-depth 1 "${folders[@]}" 2>/dev/null)
+session_list=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | sed 's/^/session:/')
 
 if [[ $# -eq 1 ]]; then
   selected=$1
 else
-  selected=$(fd . --type d --exact-depth 1 "${folders[@]}" | fzf --reverse)
+  selected=$(printf "%s\n%s\n" "$session_list" "$dir_list" | fzf --reverse --prompt="session or dir > ")
 fi
 
 if [[ -z $selected ]]; then
   exit 0
 fi
+
+if [[ $selected == session:* ]]; then
+  session_name="${selected#session:}"
+  if [[ -z $TMUX ]]; then
+    tmux attach -t "$session_name"
+  else
+    tmux switch-client -t "$session_name"
+  fi
+  exit 0
+fi
+
 
 selected_name=$(basename "$selected" | tr . _)
 tmux_running=$(pgrep tmux)
