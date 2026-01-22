@@ -1,30 +1,64 @@
 #!/usr/bin/env bash
 
+get_theme() {
+    local theme_file scheme
+    theme_file="${XDG_CACHE_HOME:-$HOME/.cache}/tmux/theme"
+    if [ -n "${TMUX_COLOR_SCHEME:-}" ]; then
+        printf "%s" "$TMUX_COLOR_SCHEME"
+        return
+    fi
+    if [ -f "$theme_file" ]; then
+        tr -d ' \t\r\n' < "$theme_file"
+        return
+    fi
+    if command -v gsettings >/dev/null 2>&1; then
+        scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'")
+        case "$scheme" in
+            *dark*) printf "dark"; return ;;
+            *light*) printf "light"; return ;;
+        esac
+    fi
+    printf "dark"
+}
+
+theme=$(get_theme)
+if [ "$theme" = "light" ]; then
+    ok="#40a02b"
+    warn="#df8e1d"
+    hot="#fe640b"
+    crit="#d20f39"
+else
+    ok="#9ece6a"
+    warn="#f4bf75"
+    hot="#f69c5e"
+    crit="#ff2640"
+fi
+
 cpu_temp=$(sensors | awk '/Core 0/ {print $3}' |  awk -F'[^0-9]*' '$0=$2')
 gpu_temp=$(sensors | awk '/GPU/ {print $2}' |  awk -F'[^0-9]*' '$0=$2')
 
 if [ "$cpu_temp" -ge 0 ] && [ "$cpu_temp" -le 60 ]; then
-    printf "#[fg=#9ece6a]%3s°C" "$cpu_temp"
+    printf "#[fg=%s]%3s°C" "$ok" "$cpu_temp"
 elif [ "$cpu_temp" -ge 61 ] && [ "$cpu_temp" -le 84 ]; then
-    printf "#[fg=#f4bf75]%3s°C" "$cpu_temp" 
+    printf "#[fg=%s]%3s°C" "$warn" "$cpu_temp"
 elif [ "$cpu_temp" -ge 85 ] && [ "$cpu_temp" -le 95 ]; then
-    printf "#[fg=#f69c5e]%3s°C" "$cpu_temp" 
+    printf "#[fg=%s]%3s°C" "$hot" "$cpu_temp"
 elif [ "$cpu_temp" -ge 96 ]; then
-    printf "#[fg=#ff2640]%3s°C" "$cpu_temp"
+    printf "#[fg=%s]%3s°C" "$crit" "$cpu_temp"
 else
-    printf "#[fg=#ff2640]%3s°C" "$cpu_temp"
+    printf "#[fg=%s]%3s°C" "$crit" "$cpu_temp"
 fi
 
 if [ -n "$gpu_temp" ]; then
 	if [ "$gpu_temp" -ge 0 ] && [ "$gpu_temp" -le 60 ]; then
-		printf "#[fg=#9ece6a]%3s°C" "$gpu_temp"
+		printf "#[fg=%s]%3s°C" "$ok" "$gpu_temp"
 	elif [ "$gpu_temp" -ge 61 ] && [ "$gpu_temp" -le 84 ]; then
-		printf "#[fg=#f4bf75]%3s°C" "$gpu_temp" 
+		printf "#[fg=%s]%3s°C" "$warn" "$gpu_temp"
 	elif [ "$gpu_temp" -ge 85 ] && [ "$gpu_temp" -le 95 ]; then
-		printf "#[fg=#f69c5e]%3s°C" "$gpu_temp" 
+		printf "#[fg=%s]%3s°C" "$hot" "$gpu_temp"
 	elif [ "$gpu_temp" -ge 96 ]; then
-		printf "#[fg=#ff2640]%3s°C" "$gpu_temp"
+		printf "#[fg=%s]%3s°C" "$crit" "$gpu_temp"
 	else
-		printf "#[fg=#ff2640]%3s°C" "$gpu_temp"
+		printf "#[fg=%s]%3s°C" "$crit" "$gpu_temp"
 	fi
 fi

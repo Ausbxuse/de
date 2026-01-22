@@ -1,4 +1,25 @@
 #!/usr/bin/env bash
+get_theme() {
+    local theme_file scheme
+    theme_file="${XDG_CACHE_HOME:-$HOME/.cache}/tmux/theme"
+    if [ -n "${TMUX_COLOR_SCHEME:-}" ]; then
+        printf "%s" "$TMUX_COLOR_SCHEME"
+        return
+    fi
+    if [ -f "$theme_file" ]; then
+        tr -d ' \t\r\n' < "$theme_file"
+        return
+    fi
+    if command -v gsettings >/dev/null 2>&1; then
+        scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'")
+        case "$scheme" in
+            *dark*) printf "dark"; return ;;
+            *light*) printf "light"; return ;;
+        esac
+    fi
+    printf "dark"
+}
+
 # status=$(free --mebi | sed -n '2{p;q}' | awk '{printf ("%2.0f/%2.0fG\n", ( $3 / 1024), ($2 / 1024))}')
 read total used <<<$(free --mebi | awk '/Mem:/ {print $2, $3}')
 
@@ -24,5 +45,10 @@ status=$(awk -v u="$used" -v t="$total" -v d="$div" -v unit="$unit" \
 # 	6[0-9]) echo -e "\x0f▇" ;;
 # 	7[0-9]|8[0-9]|9[0-9]|10[0-9]) echo -e "\x0f█" ;;
 # esac
-color="#89ddff"
+theme=$(get_theme)
+if [ "$theme" = "light" ]; then
+    color="#1e66f5"
+else
+    color="#89ddff"
+fi
 echo "#[fg=$color,bg=default,bold]#[nobold]#[fg=$color]${status}"

@@ -1,5 +1,37 @@
 #!/usr/bin/env bash
 
+get_theme() {
+    local theme_file scheme
+    theme_file="${XDG_CACHE_HOME:-$HOME/.cache}/tmux/theme"
+    if [ -n "${TMUX_COLOR_SCHEME:-}" ]; then
+        printf "%s" "$TMUX_COLOR_SCHEME"
+        return
+    fi
+    if [ -f "$theme_file" ]; then
+        tr -d ' \t\r\n' < "$theme_file"
+        return
+    fi
+    if command -v gsettings >/dev/null 2>&1; then
+        scheme=$(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null | tr -d "'")
+        case "$scheme" in
+            *dark*) printf "dark"; return ;;
+            *light*) printf "light"; return ;;
+        esac
+    fi
+    printf "dark"
+}
+
+theme=$(get_theme)
+if [ "$theme" = "light" ]; then
+    ok="#40a02b"
+    warn="#df8e1d"
+    crit="#d20f39"
+else
+    ok="#9ece6a"
+    warn="#f4bf75"
+    crit="#ff2640"
+fi
+
 battery_path=$(find /sys/class/power_supply/ -name "BAT*" | head -n 1)
 
 capacity=$(cat "${battery_path}/capacity")
@@ -7,30 +39,30 @@ status=$(cat "${battery_path}/status")
 if [ "${status}" = "Discharging" ]
 then
     case $capacity in
-        [0-9]) echo "#[fg=#ff2640]${capacity}%" ;;
-        1[0-9]) echo "#[fg=#ff2640]${capacity}%" ;;
-        2[0-9]) echo "#[fg=#f4bf75]${capacity}%" ;;
-        3[0-9]) echo "#[fg=#f4bf75]${capacity}%" ;;
-        4[0-9]) echo "#[fg=#f4bf75]${capacity}%" ;;
-        5[0-9]) echo "#[fg=#9ece6a]${capacity}%" ;;
-        6[0-9]) echo "#[fg=#9ece6a]${capacity}%" ;;
-        7[0-9]) echo "#[fg=#9ece6a]${capacity}%" ;;
-        8[0-9]) echo "#[fg=#9ece6a]${capacity}%" ;;
-        9[0-9]|10[0-9]) echo "#[fg=#9ece6a]#" ;;
+        [0-9]) echo "#[fg=${crit}]${capacity}%" ;;
+        1[0-9]) echo "#[fg=${crit}]${capacity}%" ;;
+        2[0-9]) echo "#[fg=${warn}]${capacity}%" ;;
+        3[0-9]) echo "#[fg=${warn}]${capacity}%" ;;
+        4[0-9]) echo "#[fg=${warn}]${capacity}%" ;;
+        5[0-9]) echo "#[fg=${ok}]${capacity}%" ;;
+        6[0-9]) echo "#[fg=${ok}]${capacity}%" ;;
+        7[0-9]) echo "#[fg=${ok}]${capacity}%" ;;
+        8[0-9]) echo "#[fg=${ok}]${capacity}%" ;;
+        9[0-9]|10[0-9]) echo "#[fg=${ok}]#" ;;
     esac
 elif [ "${status}" = "Charging" ]
 then 
     case $capacity in
-        [0-9]|1[0-9]) echo "#[fg=#ff2640]${capacity}%" ;;
-        2[0-9]|3[0-9]) echo "#[fg=#f4bf75]${capacity}%" ;;
-        4[0-9]|5[0-9]) echo "#[fg=#f4bf75]${capacity}%" ;;
-        6[0-9]|7[0-9]) echo "#[fg=#9ece6a]${capacity}%" ;;
-        8[0-9]|9[0-9]) echo "#[fg=#9ece6a]${capacity}%" ;;
-        10[0-9]) echo "#[fg=#9ece6a,bold]${capacity}%" ;;
+        [0-9]|1[0-9]) echo "#[fg=${crit}]${capacity}%" ;;
+        2[0-9]|3[0-9]) echo "#[fg=${warn}]${capacity}%" ;;
+        4[0-9]|5[0-9]) echo "#[fg=${warn}]${capacity}%" ;;
+        6[0-9]|7[0-9]) echo "#[fg=${ok}]${capacity}%" ;;
+        8[0-9]|9[0-9]) echo "#[fg=${ok}]${capacity}%" ;;
+        10[0-9]) echo "#[fg=${ok},bold]${capacity}%" ;;
     esac
 elif [ "${status}" = "Full" ]
 then
-    printf "#[fg=#9ece6a,bold]#"
+    printf "#[fg=${ok},bold]#"
 else
     printf "?"
 fi
