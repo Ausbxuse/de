@@ -70,5 +70,5 @@ else
 fi
 
 if [[ "$gpu_temp" =~ ^[0-9]+$ ]]; then
-    printf " #[fg=%s]%3s°C" "$(pick_color "$gpu_temp")" "$gpu_temp"
+    printf "#[fg=%s]%3s°C" "$(pick_color "$gpu_temp")" "$gpu_temp"
 fi
