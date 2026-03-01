@@ -21,6 +21,32 @@ get_theme() {
     printf "dark"
 }
 
+pick_color() {
+    local temp="$1"
+    if [ "$temp" -le 60 ]; then
+        printf "%s" "$ok"
+    elif [ "$temp" -le 84 ]; then
+        printf "%s" "$warn"
+    elif [ "$temp" -le 95 ]; then
+        printf "%s" "$hot"
+    else
+        printf "%s" "$crit"
+    fi
+}
+
+extract_temp() {
+    local pattern="$1" field="$2"
+    sensors | awk -v pat="$pattern" -v fld="$field" '
+        $0 ~ pat {
+            v = $fld
+            if (match(v, /[0-9]+/)) {
+                print substr(v, RSTART, RLENGTH)
+                exit
+            }
+        }
+    '
+}
+
 theme=$(get_theme)
 if [ "$theme" = "light" ]; then
     ok="#40a02b"
@@ -34,31 +60,15 @@ else
     crit="#ff2640"
 fi
 
-cpu_temp=$(sensors | awk '/Core 0/ {print $3}' |  awk -F'[^0-9]*' '$0=$2')
-gpu_temp=$(sensors | awk '/GPU/ {print $2}' |  awk -F'[^0-9]*' '$0=$2')
+cpu_temp=$(extract_temp "Core 0" 3)
+gpu_temp=$(extract_temp "GPU" 2)
 
-if [ "$cpu_temp" -ge 0 ] && [ "$cpu_temp" -le 60 ]; then
-    printf "#[fg=%s]%3s°C" "$ok" "$cpu_temp"
-elif [ "$cpu_temp" -ge 61 ] && [ "$cpu_temp" -le 84 ]; then
-    printf "#[fg=%s]%3s°C" "$warn" "$cpu_temp"
-elif [ "$cpu_temp" -ge 85 ] && [ "$cpu_temp" -le 95 ]; then
-    printf "#[fg=%s]%3s°C" "$hot" "$cpu_temp"
-elif [ "$cpu_temp" -ge 96 ]; then
-    printf "#[fg=%s]%3s°C" "$crit" "$cpu_temp"
+if [[ "$cpu_temp" =~ ^[0-9]+$ ]]; then
+    printf "#[fg=%s]%3s°C" "$(pick_color "$cpu_temp")" "$cpu_temp"
 else
-    printf "#[fg=%s]%3s°C" "$crit" "$cpu_temp"
+    printf "#[fg=%s] N/A" "$crit"
 fi
 
-if [ -n "$gpu_temp" ]; then
-	if [ "$gpu_temp" -ge 0 ] && [ "$gpu_temp" -le 60 ]; then
-		printf "#[fg=%s]%3s°C" "$ok" "$gpu_temp"
-	elif [ "$gpu_temp" -ge 61 ] && [ "$gpu_temp" -le 84 ]; then
-		printf "#[fg=%s]%3s°C" "$warn" "$gpu_temp"
-	elif [ "$gpu_temp" -ge 85 ] && [ "$gpu_temp" -le 95 ]; then
-		printf "#[fg=%s]%3s°C" "$hot" "$gpu_temp"
-	elif [ "$gpu_temp" -ge 96 ]; then
-		printf "#[fg=%s]%3s°C" "$crit" "$gpu_temp"
-	else
-		printf "#[fg=%s]%3s°C" "$crit" "$gpu_temp"
-	fi
+if [[ "$gpu_temp" =~ ^[0-9]+$ ]]; then
+    printf " #[fg=%s]%3s°C" "$(pick_color "$gpu_temp")" "$gpu_temp"
 fi
