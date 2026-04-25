@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-folders=(~/src/public ~/src/school ~/Research)
+folders=(~/src/public ~/src/school ~/Research ~/src/dev)
 codex_cmd="nix run github:sadjow/codex-cli-nix"
 
 dir_list=$(fd . --type d --exact-depth 1 "${folders[@]}" 2>/dev/null || true)
