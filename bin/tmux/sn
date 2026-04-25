@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 
-folders=(~/src/public ~/src/school ~/Research)
+set -euo pipefail
 
-dir_list=$(fd . --type d --exact-depth 1 "${folders[@]}" 2>/dev/null)
-session_list=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | sed 's/^/session:/')
+folders=(~/src/public ~/src/school ~/Research)
+codex_cmd="nix run github:sadjow/codex-cli-nix"
+
+dir_list=$(fd . --type d --exact-depth 1 "${folders[@]}" 2>/dev/null || true)
+session_list=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | sed 's/^/session:/' || true)
 
 if [[ $# -eq 1 ]]; then
   selected=$1
@@ -11,37 +14,45 @@ else
   selected=$(printf "%s\n%s\n" "$session_list" "$dir_list" | fzf --reverse --prompt="session or dir > ")
 fi
 
-if [[ -z $selected ]]; then
+if [[ -z ${selected:-} ]]; then
   exit 0
 fi
 
 if [[ $selected == session:* ]]; then
   session_name="${selected#session:}"
-  if [[ -z $TMUX ]]; then
-    tmux attach -t "$session_name"
+  if [[ -z ${TMUX:-} ]]; then
+    tmux attach -t "=${session_name}"
   else
-    tmux switch-client -t "$session_name"
+    tmux switch-client -t "=${session_name}"
   fi
   exit 0
 fi
 
+selected_name=$(basename "$selected" | tr '.:' '__')
 
-selected_name=$(basename "$selected" | tr . _)
-tmux_running=$(pgrep tmux)
+create_project_session() {
+  tmux new-session -d -s "$selected_name" -n "$selected_name" -c "$selected" "$codex_cmd"
+  tmux split-window -t "=${selected_name}:=${selected_name}" -h -c "$selected"
+  tmux select-pane -t "=${selected_name}:=${selected_name}.0"
+  tmux select-layout -t "=${selected_name}:=${selected_name}" main-vertical
+}
 
-if [[ -z $TMUX ]] && [[ -z $tmux_running ]]; then
-  tmux new-session -s "$selected_name" -c "$selected"
-  exit 0
+select_project_window() {
+  tmux select-window -t "=${selected_name}:=${selected_name}" 2>/dev/null || true
+}
+
+if ! tmux has-session -t "=${selected_name}" 2>/dev/null; then
+  create_project_session
 fi
 
-if ! tmux has-session -t="$selected_name" 2>/dev/null; then
-  tmux new-session -ds "$selected_name" -n "shell" -c "$selected"
-  # tmux send-keys -t "$selected_name:1" "nvim" C-m
-  # tmux split-window -t "$selected_name:1" -h -c "$selected"
-  # tmux select-pane -t "$selected_name:1.0"
+if [[ -z ${TMUX:-} ]]; then
+  select_project_window
+  tmux attach -t "=${selected_name}"
+else
+  tmux switch-client -t "=${selected_name}"
+  select_project_window
 fi
 
-tmux switch-client -t "$selected_name"
-tmux select-window -t "$selected_name:1"
-
-gnome-extensions disable ubuntu-dock@ubuntu.com
+if command -v gnome-extensions >/dev/null 2>&1; then
+  gnome-extensions disable ubuntu-dock@ubuntu.com || true
+fi
