@@ -34,17 +34,70 @@ pick_color() {
     fi
 }
 
+sensors_output() {
+    sensors 2>/dev/null
+}
+
 extract_temp() {
-    local pattern="$1" field="$2"
-    sensors | awk -v pat="$pattern" -v fld="$field" '
+    local pattern="$1" field="${2:-0}"
+    sensors_output | awk -v pat="$pattern" -v fld="$field" '
         $0 ~ pat {
-            v = $fld
-            if (match(v, /[0-9]+/)) {
-                print substr(v, RSTART, RLENGTH)
+            v = fld > 0 ? $fld : $0
+            if (match(v, /[+-]?[0-9]+(\.[0-9]+)?[[:space:]]*°C/)) {
+                value = substr(v, RSTART, RLENGTH)
+                sub(/[[:space:]]*°C$/, "", value)
+                sub(/^\+/, "", value)
+                split(value, parts, ".")
+                print parts[1]
                 exit
             }
         }
     '
+}
+
+cpu_temp() {
+    local temp
+    for pattern in "Package id 0" "Tctl" "Core 0" "temp1"; do
+        temp="$(extract_temp "$pattern")"
+        if [[ "$temp" =~ ^[0-9]+$ ]]; then
+            printf "%s" "$temp"
+            return
+        fi
+    done
+}
+
+is_razy_docked() {
+    local current_host docked_marker
+    current_host="${TMUX_STATUS_HOSTNAME:-$(hostname 2>/dev/null)}"
+    docked_marker="${TMUX_DOCKED_MARKER:-/etc/nixos/docked}"
+    [ "$current_host" = "razy" ] && [ -f "$docked_marker" ]
+}
+
+is_razy() {
+    [ "${TMUX_STATUS_HOSTNAME:-$(hostname 2>/dev/null)}" = "razy" ]
+}
+
+gpu_temp() {
+    local temp
+
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        temp="$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits 2>/dev/null | awk 'NR == 1 && /^[0-9]+$/ { print; exit }')"
+        if [[ "$temp" =~ ^[0-9]+$ ]]; then
+            printf "%s" "$temp"
+            return
+        fi
+    fi
+
+    extract_temp "GPU" 2
+}
+
+print_temp() {
+    local label="$1" temp="$2"
+    if [[ "$temp" =~ ^[0-9]+$ ]]; then
+        printf "#[fg=%s]%s%2s°C" "$(pick_color "$temp")" "$label" "$temp"
+    else
+        printf "#[fg=%s]%sN/A" "$crit" "$label"
+    fi
 }
 
 theme=$(get_theme)
@@ -60,15 +113,23 @@ else
     crit="#ff2640"
 fi
 
-cpu_temp=$(extract_temp "Core 0" 3)
-gpu_temp=$(extract_temp "GPU" 2)
-
-if [[ "$cpu_temp" =~ ^[0-9]+$ ]]; then
-    printf "#[fg=%s]%3s°C" "$(pick_color "$cpu_temp")" "$cpu_temp"
+cpu="$(cpu_temp)"
+if is_razy; then
+    if is_razy_docked; then
+        printf "#[fg=%s]docked " "$ok"
+        print_temp "C" "$cpu"
+        gpu="$(gpu_temp)"
+        printf " "
+        print_temp "G" "$gpu"
+    else
+        printf "#[fg=%s]undocked " "$warn"
+        print_temp "C" "$cpu"
+    fi
 else
-    printf "#[fg=%s] N/A" "$crit"
-fi
-
-if [[ "$gpu_temp" =~ ^[0-9]+$ ]]; then
-    printf "#[fg=%s]%3s°C" "$(pick_color "$gpu_temp")" "$gpu_temp"
+    print_temp "C" "$cpu"
+    gpu="$(gpu_temp)"
+    if [[ "$gpu" =~ ^[0-9]+$ ]]; then
+        printf " "
+        print_temp "G" "$gpu"
+    fi
 fi
